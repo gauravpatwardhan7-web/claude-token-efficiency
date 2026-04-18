@@ -1,24 +1,16 @@
 ---
 name: token-efficiency
-description: "Analyze your Claude Code token usage efficiency — see wasted tokens, unused context capacity, activity heatmaps, and productivity metrics across all sessions."
+description: "Analyze your Claude Code token usage efficiency — 3 solid metrics: cache hit rate, capacity utilization, and productive session rate."
 trigger: /token-efficiency
 ---
 
 # /token-efficiency
 
-Analyzes token usage across all your Claude Code sessions and prints a dashboard showing:
+Analyzes token usage across all your Claude Code sessions and prints a single-screen dashboard showing:
 
-- **Token totals** — input, output, cache reads/writes, combined usage
-- **Cache hit rate** — how often context is served from cache (cheap vs expensive)
-- **Estimated cost** — USD spend using Anthropic's published rates
-- **Activity heatmap** — GitHub-style grid showing token volume + productivity quality per day
-- **Session breakdown** — classifies each session as PRODUCTIVE / EXPLORING / CONVERSATION / EMPTY
-- **Waste analysis** — tokens spent in non-coding sessions + friction rework
-- **Context window utilization** — how much of the 200K Sonnet cap each session used
-- **Unused capacity** — total available capacity minus what you actually used (the tokens you "left on the table")
-- **Monthly summary** — tokens and cost grouped by month
-- **Efficiency metrics** — tokens per line of code, message-to-tool ratio
-- **Potential vs achieved** — goal outcomes from session facets
+- **Cache hit rate** — how often context is reused (% of tokens served from cache)
+- **Capacity utilization** — how much of your 200K session window you actually use (% of available context)
+- **Productive session rate** — % of sessions where code was written (files modified indicator)
 
 ## Usage
 
@@ -48,19 +40,17 @@ No external APIs, no auth — everything is local.
 
 ## What to Do After Running
 
-After executing the script and showing the output:
+After executing the script:
 
-1. **Call out the headline insights** — highlight the 1-2 most striking numbers (e.g., cache hit rate, unused capacity %, waste %)
-2. **Interpret the verdict** — explain what "Low/Moderate/Good/Excellent" utilization means for their workflow
-3. **Give actionable advice** based on the data:
-   - If utilization rate < 30%: suggest batching smaller tasks into longer sessions
-   - If waste % > 30%: suggest planning prompts more carefully before opening Claude
-   - If cache hit rate < 60%: suggest keeping the same project/context across sessions
-   - If many EMPTY sessions: the user is opening Claude but not completing work
+1. **ALWAYS print the full output** — do NOT summarize or condense the report
+2. Output everything from the script without interruption
+3. THEN provide interpretation:
+   - Highlight 1-2 most striking metrics (cache hit rate, capacity utilization)
+   - Explain what each verdict (EXCELLENT/GOOD/LOW, HIGH/MODERATE/LOW, FOCUSED/MIXED/FRAGMENTED) means
+   - Give specific recommendations based on the data
 
 ## Notes
 
-- Pricing is hardcoded (Sonnet 4.6 $3/$15 in/out per MTok; Haiku 4.5 $0.80/$4 per MTok) — update the `PRICING` dict in `analyzer.py` when Anthropic's rates change.
 - Context window is assumed 200K (Sonnet 4.6). Update `CONTEXT_WINDOW` constant if the user primarily uses a different model.
-- If the user has fewer than 3 sessions, the report will still run but metrics like "best session efficiency" will be degenerate. Mention this caveat if applicable.
-- ANSI color codes are used for the productivity heatmap (green/yellow/red). These render correctly in terminals but may appear as raw escape codes if piped to files.
+- If the user has fewer than 3 sessions, the metrics will still run but may not be representative. Mention this caveat if applicable.
+- The script reads only local data — no API calls, no authentication required.
