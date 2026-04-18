@@ -1,14 +1,11 @@
 # Claude Token Efficiency Analyzer
 
-A Claude Code skill that analyzes your token usage across all sessions and reveals:
+A Claude Code skill that analyzes your token usage with honest metrics:
 
-- **Actual efficiency**: tokens used vs. wasted
-- **Unused potential**: how much context window capacity you left on the table
-- **Productivity patterns**: which sessions produced code vs. just exploration/chat
-- **Cost analysis**: estimated USD spend using Anthropic's published rates
-- **Activity heatmaps**: GitHub-style visualization of when you were active and productive
-- **Monthly trends**: tokens and cost grouped by month
-- **Actionable insights**: specific recommendations to improve efficiency
+- **Cache hit rate**: how much context is reused across sessions (% of tokens from cache)
+- **Capacity utilization**: how much of your 200K session window you actually use per session
+- **Session statistics**: min/max/average tokens, total sessions — raw numbers
+- **No subjective guessing**: objective facts only, with a disclaimer about what's measured
 
 ## Quick Start
 
@@ -43,47 +40,24 @@ python3 ~/.claude/skills/token-efficiency/analyzer.py
 
 ## What You Get
 
-### Overview
-- Total tokens used (input, output, cache reads/writes)
-- **99.9% cache hit rate** example: you're reusing context across sessions (excellent!)
-- Estimated cost using Anthropic's published pricing
+### Cache Hit Rate
+- **Percentage of tokens served from cache** across all Claude Code sessions
+- Shows how well you're reusing context
+- Example: 99.9% = excellent reuse
 
-### Activity Heatmap
-Side-by-side grids showing:
-- **Left**: token volume per day (light to peak usage)
-- **Right**: productivity quality (green = productive code, yellow = exploration, red = empty)
+### Capacity Utilization (Claude Code only)
+- **What percentage of your 200K session window you use** on average
+- Shows your batching strategy: small isolated sessions vs. longer batched work
+- Example: 14.8% = mostly small sessions, room to batch more work together
 
-Example: see at a glance which days were high-effort vs. low-effort
+### Session Statistics
+- **Total sessions tracked**
+- **Average tokens per session**
+- **Min/max tokens** — shows the range of session sizes
+- Recent activity table with dates and token counts
 
-### Session Breakdown
-Table showing each session:
-- Date, project, duration, tokens, lines changed
-- Classification: **PRODUCTIVE** (code written), **EXPLORING** (tools used), **CONVERSATION** (Q&A), **EMPTY** (nothing done)
-- Goal outcome: fully/mostly/partially achieved
-
-### Waste Analysis
-- Tokens in non-productive sessions (empty, conversation, exploration)
-- Friction rework estimate (20% of sessions with "wrong approach" friction)
-- Overall inefficiency percentage
-
-### Unused Capacity
-The headline metric — **how much context window you left unused**:
-```
-Total available capacity    : 1.2M  (6 sessions × 200K per session)
-Total tokens you used       : 177.1K
-Total unused capacity       : 1.0M
-Overall utilization rate    : 14.8%
-Verdict                     : Low — you could tackle much more in each session
-```
-
-### Efficiency Metrics
-- Tokens per line of code (lower = more efficient)
-- Message-to-tool-call ratio (balanced talking vs. doing)
-- Session type breakdown
-
-### Potential vs Achieved
-- Goal achievement rate from session facets
-- Sessions with friction points (misunderstood request, wrong approach)
+### Important Disclaimer
+⚠️ **Claude Code sessions only** — VS Code sessions and other editors are not tracked. Capacity utilization reflects Claude Code usage only.
 
 ## How It Works
 
@@ -97,48 +71,31 @@ Reads three local JSON data sources that Claude Code writes automatically — **
 
 ## Interpreting Your Report
 
-### Cache Hit Rate
-- **>85%**: Excellent — context is highly reused
-- **60–85%**: Good — reasonable reuse
-- **<60%**: Low — consider keeping related work in same project
+### Cache Hit Rate Verdicts
+- **>85% (EXCELLENT)**: You're reusing context effectively across sessions
+- **60–85% (GOOD)**: Reasonable cache reuse
+- **<60% (LOW)**: Try keeping related projects in the same session to improve reuse
 
-### Utilization Rate
-- **<30%**: Low — batch smaller tasks into longer sessions
-- **30–60%**: Moderate — room to tackle more per session
-- **60–80%**: Good — using context well
-- **>80%**: Excellent — pushing context window effectively
+### Capacity Utilization Verdicts
+- **>70% (HIGH)**: You're using a lot of your 200K context per session
+- **30–70% (MODERATE)**: Room to batch more work into longer sessions
+- **<30% (LOW)**: Consider combining smaller tasks into longer sessions to maximize cache benefits
 
-### Session Types
-- **PRODUCTIVE**: lines were added/removed to files ✓
-- **EXPLORING**: tools were called but no code written
-- **CONVERSATION**: just Q&A, no tools
-- **EMPTY**: session opened but nothing happened
+### What These Mean
+- **High cache hit rate** = context is being carried forward effectively
+- **Low capacity usage** = sessions are short/isolated; batching them would improve efficiency
+- Both together = opportunity to work on larger problems in longer sessions with full context
 
 ## Customization
 
 Edit `analyzer.py` to adjust:
 
 ```python
-# Update when Anthropic's pricing changes
-PRICING = {
-    "claude-sonnet-4-6": {
-        "input": 3.0,      # $/million tokens
-        "output": 15.0,
-        "cache_read": 0.30,
-        "cache_write": 3.75,
-    },
-    ...
-}
-
 # Change for different models (default 200K = Sonnet 4.6)
 CONTEXT_WINDOW = 200_000
-
-# Adjust what counts as "productive"
-def classify_session(meta):
-    tokens = meta.get("input_tokens", 0) + meta.get("output_tokens", 0)
-    lines = meta.get("lines_added", 0) + meta.get("lines_removed", 0)
-    ...
 ```
+
+That's it. The analyzer uses only local data and doesn't require pricing or classification logic.
 
 ## Requirements
 
@@ -148,10 +105,10 @@ def classify_session(meta):
 
 ## Limitations
 
-- **Cost estimates**: Use published rates, not actual billing (Pro/Team plans are subscription-based)
-- **Productivity inference**: Only counts code changes — valuable sessions (design, debugging, teaching) may not register
-- **Cache hit rate**: Reflects Claude Code's prompt caching, not conversation memory
-- **Early datasets**: Metrics are noisy if you have <3 sessions
+- **Claude Code only**: VS Code and other editors are not tracked. Add your VS Code metrics manually if needed.
+- **Context window assumption**: Assumes 200K context (Sonnet 4.6). Update `CONTEXT_WINDOW` if you use a different primary model.
+- **Early datasets**: Metrics are less meaningful with <3 sessions
+- **No subjective quality**: Only shows raw token counts and cache reuse. Doesn't measure solution quality, learning, or other unmeasurable value.
 
 ## FAQ
 
@@ -159,16 +116,19 @@ def classify_session(meta):
 A: No. The script reads local JSON files in `~/.claude/` and prints to your terminal. No network calls.
 
 **Q: How often should I run it?**
-A: Monthly or whenever you want to check efficiency trends. The script reads live data, so you get current stats each time.
+A: Whenever you want to check your Claude Code efficiency. Weekly or monthly works well for tracking trends.
 
 **Q: Can I share my results?**
-A: Yes, the printed report is plain text. Feel free to share the heatmap and metrics with your team.
+A: Yes, the printed report is plain text. Feel free to share with your team.
+
+**Q: Why only Claude Code sessions, not VS Code?**
+A: VS Code doesn't write the same session metadata files to `~/.claude/`. Only Claude Code Web and IDE extensions generate the data this tool reads. You'd need a separate tool for VS Code session tracking.
 
 **Q: What if I use different models (Opus, Haiku)?**
-A: Update `PRICING` and `CONTEXT_WINDOW` in `analyzer.py` to match your primary model.
+A: Update `CONTEXT_WINDOW` in `analyzer.py` to match your model's context size.
 
-**Q: Why does the report say I "wasted" tokens?**
-A: "Waste" includes exploration, Q&A, and friction rework — not all are bad. Exploration builds knowledge; friction is iteration toward the right solution. The report flags them so you can decide if they're valuable.
+**Q: Why doesn't the report include productivity or goal outcomes?**
+A: Those metrics are subjective and hard to measure reliably. Instead, the tool shows objective facts: cache reuse rate and session token counts. You decide if that's valuable.
 
 ## Contributing
 

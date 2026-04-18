@@ -20,14 +20,12 @@ claude-token-efficiency/
 ├── README.md                    ← Start here
 ├── INSTALL.md                   ← Installation instructions
 ├── SKILL.md                     ← Claude Code skill definition
-├── analyzer.py                  ← The actual script (22KB)
+├── analyzer.py                  ← The actual script (~5KB)
 ├── CONTRIBUTING.md              ← How to help improve this
 ├── CHANGELOG.md                 ← Version history
+├── INDEX.md                     ← This file
 ├── LICENSE                      ← MIT license
 ├── .gitignore                   ← Git ignore patterns
-├── .github/
-│   └── workflows/
-│       └── test.yml             ← CI/CD (syntax checks)
 └── examples/
     └── sample_output.txt        ← Real report example
 ```
@@ -50,35 +48,31 @@ claude-token-efficiency/
 
 ### For Developers
 
-1. **Code Walkthrough** → [analyzer.py](analyzer.py) (heavily commented)
-   - ~700 lines of pure Python
-   - 9 major functions: load data, classify, calculate, visualize, report
+1. **Code Walkthrough** → [analyzer.py](analyzer.py)
+   - ~160 lines of pure Python
+   - 5 functions: load data, calculate cache/capacity/sessions, format, print report
 
 2. **Contributing** → [CONTRIBUTING.md](CONTRIBUTING.md)
    - Bug reports, feature requests, PRs
 
-3. **CI/CD** → [.github/workflows/test.yml](.github/workflows/test.yml)
-   - Runs on Python 3.7–3.12, macOS/Linux/Windows
-   - Syntax checks on every PR
+3. **Testing**
+   - Pure Python stdlib — no dependencies to install
+   - Runs on Python 3.7+
 
 ## What This Does
 
 The analyzer reads local data that Claude Code writes automatically:
-- `~/.claude/stats-cache.json` — token aggregates
-- `~/.claude/usage-data/session-meta/*.json` — session details
-- `~/.claude/usage-data/facets/*.json` — goal outcomes
+- `~/.claude/stats-cache.json` — cache read/write stats
+- `~/.claude/usage-data/session-meta/*.json` — per-session tokens, tool calls
 
-And prints a multi-section dashboard:
+And prints a single-screen dashboard:
 
-1. **Overview** — total tokens, cache hit rate, cost
-2. **Heatmap** — activity patterns (visual)
-3. **Session Breakdown** — detailed table
-4. **Waste Analysis** — inefficiency detection
-5. **Context Utilization** — % of 200K cap used
-6. **Unused Capacity** — untapped potential
-7. **Monthly Summary** — trends
-8. **Efficiency Metrics** — ratios and rates
-9. **Potential vs Achieved** — goal success rate
+1. **Cache Hit Rate** — % of tokens from cache (EXCELLENT/GOOD/LOW)
+2. **Capacity Utilization** — % of 200K window used (HIGH/MODERATE/LOW)
+3. **Session Statistics** — min/max/average tokens, session count
+4. **Recent Activity** — last 7 sessions with dates and token counts
+5. **Insight** — recommendation based on weakest metric
+6. **Disclaimer** — Claude Code sessions only, VS Code not tracked
 
 ## Installation (TL;DR)
 
@@ -113,10 +107,8 @@ Open an issue on GitHub: [yourusername/claude-token-efficiency/issues](https://g
 
 **Q: Can I customize the metrics?**
 
-Yes! Edit the constants in `analyzer.py`:
-- `PRICING` — update when Anthropic changes rates
-- `CONTEXT_WINDOW` — change for different models
-- `SEP` — adjust separator line width
+Yes! Edit the constant in `analyzer.py`:
+- `CONTEXT_WINDOW` — change for different models (default: 200K for Sonnet 4.6)
 
 **Q: Is this official from Anthropic?**
 
