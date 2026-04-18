@@ -1,6 +1,6 @@
 ---
 name: token-efficiency
-description: "Analyze your Claude Code token usage efficiency — 3 solid metrics: cache hit rate, capacity utilization, and productive session rate."
+description: "Analyze your Claude Code token usage efficiency — cache hit rate, capacity utilization, and session statistics."
 trigger: /token-efficiency
 ---
 
@@ -9,8 +9,8 @@ trigger: /token-efficiency
 Analyzes token usage across all your Claude Code sessions and prints a single-screen dashboard showing:
 
 - **Cache hit rate** — how often context is reused (% of tokens served from cache)
-- **Capacity utilization** — how much of your 200K session window you actually use (% of available context)
-- **Productive session rate** — % of sessions where code was written (files modified indicator)
+- **Capacity utilization** — how much of your 200K session window you actually use (% of available context, Claude Code only)
+- **Session statistics** — min/max/average tokens per session, total session count
 
 ## Usage
 
