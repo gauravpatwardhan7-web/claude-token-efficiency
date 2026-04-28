@@ -1,11 +1,18 @@
 #!/usr/bin/env python3
-"""Claude token efficiency analyzer — 3 solid metrics, one-screen dashboard."""
+"""Claude Code token efficiency analyzer — focus on wasted context window."""
 
 import json
 import glob
 from pathlib import Path
 from datetime import datetime
 from collections import defaultdict
+
+try:
+    import matplotlib.pyplot as plt
+    import matplotlib.patches as mpatches
+    HAS_MATPLOTLIB = True
+except ImportError:
+    HAS_MATPLOTLIB = False
 
 CLAUDE_DIR = Path.home() / ".claude"
 CONTEXT_WINDOW = 200_000  # Sonnet 4.6
@@ -35,22 +42,30 @@ def calc_cache_hit_rate(stats):
     return (total_cache_read / total * 100) if total > 0 else 0
 
 
-def calc_capacity_utilization(metas):
-    """Calculate how much of available context window was used."""
+def calc_efficiency_metrics(metas):
+    """Calculate tokens used, wasted, and efficiency per session."""
+    sessions = []
     total_available = len(metas) * CONTEXT_WINDOW
-    total_used = sum(
-        m.get("input_tokens", 0) + m.get("output_tokens", 0)
-        for m in metas
-    )
-    return (total_used / total_available * 100) if total_available > 0 else 0, total_used, total_available
+    total_used = 0
+    total_wasted = 0
 
+    for meta in metas:
+        used = meta.get("input_tokens", 0) + meta.get("output_tokens", 0)
+        wasted = CONTEXT_WINDOW - used
+        efficiency = (used / CONTEXT_WINDOW * 100) if CONTEXT_WINDOW > 0 else 0
 
-def calc_session_stats(metas):
-    """Calculate raw session statistics."""
-    if not metas:
-        return 0, 0, 0, 0
-    tokens = [m.get("input_tokens", 0) + m.get("output_tokens", 0) for m in metas]
-    return min(tokens), max(tokens), sum(tokens) // len(tokens), len(metas)
+        sessions.append({
+            "date": fmt_date(meta.get("start_time", "")),
+            "used": used,
+            "wasted": wasted,
+            "efficiency": efficiency,
+            "start_time": meta.get("start_time", "")
+        })
+        total_used += used
+        total_wasted += wasted
+
+    overall_efficiency = (total_used / total_available * 100) if total_available > 0 else 0
+    return sessions, total_used, total_wasted, overall_efficiency
 
 
 def fmt_tokens(n):
@@ -64,35 +79,62 @@ def fmt_tokens(n):
 def fmt_date(iso):
     try:
         dt = datetime.fromisoformat(iso.replace("Z", "+00:00"))
-        return dt.strftime("%Y-%m-%d (%a)")
+        return dt.strftime("%Y-%m-%d")
     except Exception:
         return iso[:10] if iso else "?"
 
 
 def make_bar(pct, width=20):
-    """Create a simple bar chart (e.g., 50% -> ██████░░░░)."""
+    """Create a bar showing used (filled) vs unused (empty) tokens."""
     filled = int(pct / 100 * width)
     return "█" * filled + "░" * (width - filled)
 
 
-def verdict_cache(rate):
-    if rate > 85:
-        return "EXCELLENT"
-    elif rate > 60:
-        return "GOOD"
-    else:
-        return "LOW"
+def generate_chart(sessions):
+    """Generate a visualization of token usage per session."""
+    if not HAS_MATPLOTLIB:
+        return None
 
+    try:
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
 
-def verdict_capacity(rate):
-    if rate > 70:
-        return "HIGH"
-    elif rate > 30:
-        return "MODERATE"
-    else:
-        return "LOW"
+        # Chart 1: Used vs Wasted tokens per session
+        dates = [s["date"] for s in sessions]
+        used = [s["used"] / 1000 for s in sessions]  # Convert to K
+        wasted = [s["wasted"] / 1000 for s in sessions]
 
+        x = range(len(sessions))
+        ax1.bar(x, used, label="Used", color="#2ecc71", alpha=0.8)
+        ax1.bar(x, wasted, bottom=used, label="Wasted", color="#e74c3c", alpha=0.6)
+        ax1.set_ylabel("Tokens (K)")
+        ax1.set_xlabel("Session")
+        ax1.set_title("Token Usage per Session: Used vs Wasted")
+        ax1.set_xticks(x)
+        ax1.set_xticklabels(dates, rotation=45, ha="right", fontsize=8)
+        ax1.legend()
+        ax1.grid(axis="y", alpha=0.3)
 
+        # Chart 2: Efficiency percentage per session
+        efficiency = [s["efficiency"] for s in sessions]
+        colors = ["#2ecc71" if e > 50 else "#f39c12" if e > 30 else "#e74c3c" for e in efficiency]
+        ax2.bar(x, efficiency, color=colors, alpha=0.8)
+        ax2.axhline(y=50, color="orange", linestyle="--", label="50% threshold", alpha=0.5)
+        ax2.axhline(y=30, color="red", linestyle="--", label="30% threshold", alpha=0.5)
+        ax2.set_ylabel("Efficiency (%)")
+        ax2.set_xlabel("Session")
+        ax2.set_title("Window Utilization per Session")
+        ax2.set_xticks(x)
+        ax2.set_xticklabels(dates, rotation=45, ha="right", fontsize=8)
+        ax2.set_ylim(0, 105)
+        ax2.legend()
+        ax2.grid(axis="y", alpha=0.3)
+
+        plt.tight_layout()
+        plt.savefig("graphify-out/token_efficiency.png", dpi=150, bbox_inches="tight")
+        return "graphify-out/token_efficiency.png"
+    except Exception as e:
+        print(f"Warning: Could not generate chart: {e}")
+        return None
 
 
 def print_report(stats, metas):
@@ -101,45 +143,53 @@ def print_report(stats, metas):
         return
 
     cache_rate = calc_cache_hit_rate(stats)
-    capacity_pct, tokens_used, capacity_total = calc_capacity_utilization(metas)
-    min_tokens, max_tokens, avg_tokens, session_count = calc_session_stats(metas)
+    sessions, total_used, total_wasted, overall_eff = calc_efficiency_metrics(metas)
 
     print("\n╔═══════════════════════════════════════════════════════════════╗")
-    print("║           CLAUDE CODE TOKEN USAGE                            ║")
+    print("║        CLAUDE CODE TOKEN EFFICIENCY — WASTED CAPACITY         ║")
     print("╚═══════════════════════════════════════════════════════════════╝\n")
 
-    bar1 = make_bar(cache_rate, 20)
-    print(f"CACHE HIT RATE:        {cache_rate:5.1f}%  {bar1}  {verdict_cache(cache_rate)}")
+    print(f"CACHE HIT RATE:        {cache_rate:5.1f}%")
     print("                       (Context reused across sessions)\n")
 
-    bar2 = make_bar(capacity_pct, 20)
-    print(f"CAPACITY USED:         {capacity_pct:5.1f}%  {bar2}  {verdict_capacity(capacity_pct)}")
-    print(f"                       ({fmt_tokens(tokens_used)} of {fmt_tokens(capacity_total)} available)\n")
+    print(f"OVERALL EFFICIENCY:    {overall_eff:5.1f}%  {make_bar(overall_eff)}")
+    print(f"                       ({fmt_tokens(total_used)} used, {fmt_tokens(total_wasted)} wasted)\n")
 
     print("═══════════════════════════════════════════════════════════════\n")
-    print("SESSION BREAKDOWN:\n")
-    print(f"  Sessions:            {session_count}")
-    print(f"  Avg tokens/session:  {fmt_tokens(avg_tokens)}")
-    print(f"  Min tokens:          {fmt_tokens(min_tokens)}")
-    print(f"  Max tokens:          {fmt_tokens(max_tokens)}\n")
+    print("SESSIONS (sorted by waste):\n")
 
-    print("RECENT ACTIVITY:\n")
-    for meta in metas[-7:]:
-        date = fmt_date(meta.get("start_time", ""))
-        tokens = meta.get("input_tokens", 0) + meta.get("output_tokens", 0)
-        print(f"  {date:<20}  {fmt_tokens(tokens):>7}")
+    sorted_sessions = sorted(sessions, key=lambda s: s["wasted"], reverse=True)
+    for i, s in enumerate(sorted_sessions, 1):
+        bar = make_bar(s["efficiency"])
+        print(f"  {i}. {s['date']:<12}  {s['efficiency']:5.1f}%  {bar}  {fmt_tokens(s['used']):>7} used, {fmt_tokens(s['wasted']):>7} wasted")
 
     print("\n" + "═" * 63)
     print("⚠️  Claude Code sessions only — VS Code sessions not tracked\n")
 
-    if capacity_pct < 30:
-        print(f"💡 You're using only {capacity_pct:.0f}% of context window.")
-        print("   Batch related tasks into longer sessions to improve cache reuse.")
-    elif cache_rate < 60:
-        print(f"💡 Cache reuse is low ({cache_rate:.0f}%).")
-        print("   Keep related projects in the same session for better efficiency.")
+    # Recommendations
+    worst_waste_pct = max(s["efficiency"] for s in sessions) if sessions else 0
+    best_waste_pct = min(s["efficiency"] for s in sessions) if sessions else 0
+    avg_waste_pct = overall_eff
+
+    if best_waste_pct < 30:
+        print("💡 CRITICAL: You're running mostly short sessions.")
+        print(f"   Combine related work into fewer, longer sessions to use more of the {fmt_tokens(CONTEXT_WINDOW)} window.")
+        print(f"   Example: {fmt_tokens(total_wasted)} tokens wasted across {len(sessions)} sessions could have been another few hours of work.\n")
+    elif avg_waste_pct < 50:
+        print(f"💡 OPPORTUNITY: Average session uses only {avg_waste_pct:.0f}% of the window.")
+        print(f"   Batch tasks together — you're leaving {fmt_tokens(total_wasted)} tokens on the table.")
+        print(f"   That's equivalent to ~{total_wasted // 5000} 'lost sessions' of productive work.\n")
     else:
-        print("✓ STRONG CACHE REUSE: Context is being leveraged across sessions.")
+        print("✓ GOOD BATCHING: You're using context windows well.")
+        print(f"   You're capturing most of the available capacity. Keep batching related work.\n")
+
+    # Generate visualization
+    if HAS_MATPLOTLIB:
+        chart_path = generate_chart(sessions)
+        if chart_path:
+            print(f"📊 Visualization saved to: {chart_path}")
+    else:
+        print("📊 (Install matplotlib for token efficiency charts: pip install matplotlib)")
 
     print()
 

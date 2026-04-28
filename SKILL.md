@@ -1,6 +1,6 @@
 ---
 name: token-efficiency
-description: "Analyze your Claude Code token usage efficiency — cache hit rate, capacity utilization, and session statistics."
+description: "Analyze your Claude Code token usage efficiency — see how many tokens you waste per session due to poor batching."
 trigger: /token-efficiency
 ---
 
@@ -9,8 +9,9 @@ trigger: /token-efficiency
 Analyzes token usage across all your Claude Code sessions and prints a single-screen dashboard showing:
 
 - **Cache hit rate** — how often context is reused (% of tokens served from cache)
-- **Capacity utilization** — how much of your 200K session window you actually use (% of available context, Claude Code only)
-- **Session statistics** — min/max/average tokens per session, total session count
+- **Wasted tokens per session** — tokens left unused when each session window resets (200K - actual_used)
+- **Efficiency per session** — what % of each session's context window was actually consumed
+- **Visualization** — chart showing used (green) vs wasted (red) for each session, plus efficiency trend
 
 ## Usage
 
@@ -42,12 +43,13 @@ No external APIs, no auth — everything is local.
 
 After executing the script:
 
-1. **ALWAYS print the full output** — do NOT summarize or condense the report
+1. **ALWAYS print the full output** — do NOT summarize or condense the report, including the visualization
 2. Output everything from the script without interruption
 3. THEN provide interpretation:
-   - Highlight 1-2 most striking metrics (cache hit rate, capacity utilization)
-   - Explain what each verdict (EXCELLENT/GOOD/LOW, HIGH/MODERATE/LOW, FOCUSED/MIXED/FRAGMENTED) means
-   - Give specific recommendations based on the data
+   - Highlight total wasted tokens and which sessions are most inefficient (shown in red on the chart)
+   - Explain the pattern: sessions below 30% efficiency are critical waste, above 50% are good
+   - Point to the visualization chart: green = used tokens, red = wasted capacity
+   - Give specific recommendations for batching related work into longer sessions
 
 ## Notes
 
