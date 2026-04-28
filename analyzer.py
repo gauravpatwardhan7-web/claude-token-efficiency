@@ -91,46 +91,85 @@ def make_bar(pct, width=20):
 
 
 def generate_chart(sessions):
-    """Generate a visualization of token usage per session."""
+    """Generate a beautiful visualization of token usage per session."""
     if not HAS_MATPLOTLIB:
         return None
 
     try:
-        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
+        # Set style
+        plt.style.use("seaborn-v0_8-darkgrid")
+        fig = plt.figure(figsize=(16, 6))
+        gs = fig.add_gridspec(2, 2, hspace=0.3, wspace=0.3)
 
-        # Chart 1: Used vs Wasted tokens per session
         dates = [s["date"] for s in sessions]
         used = [s["used"] / 1000 for s in sessions]  # Convert to K
         wasted = [s["wasted"] / 1000 for s in sessions]
-
-        x = range(len(sessions))
-        ax1.bar(x, used, label="Used", color="#2ecc71", alpha=0.8)
-        ax1.bar(x, wasted, bottom=used, label="Wasted", color="#e74c3c", alpha=0.6)
-        ax1.set_ylabel("Tokens (K)")
-        ax1.set_xlabel("Session")
-        ax1.set_title("Token Usage per Session: Used vs Wasted")
-        ax1.set_xticks(x)
-        ax1.set_xticklabels(dates, rotation=45, ha="right", fontsize=8)
-        ax1.legend()
-        ax1.grid(axis="y", alpha=0.3)
-
-        # Chart 2: Efficiency percentage per session
         efficiency = [s["efficiency"] for s in sessions]
-        colors = ["#2ecc71" if e > 50 else "#f39c12" if e > 30 else "#e74c3c" for e in efficiency]
-        ax2.bar(x, efficiency, color=colors, alpha=0.8)
-        ax2.axhline(y=50, color="orange", linestyle="--", label="50% threshold", alpha=0.5)
-        ax2.axhline(y=30, color="red", linestyle="--", label="30% threshold", alpha=0.5)
-        ax2.set_ylabel("Efficiency (%)")
-        ax2.set_xlabel("Session")
-        ax2.set_title("Window Utilization per Session")
-        ax2.set_xticks(x)
-        ax2.set_xticklabels(dates, rotation=45, ha="right", fontsize=8)
-        ax2.set_ylim(0, 105)
-        ax2.legend()
-        ax2.grid(axis="y", alpha=0.3)
+        x = range(len(sessions))
 
-        plt.tight_layout()
-        plt.savefig("graphify-out/token_efficiency.png", dpi=150, bbox_inches="tight")
+        # Chart 1: Stacked bar (Used vs Wasted)
+        ax1 = fig.add_subplot(gs[0, :])
+        ax1.bar(x, used, label="Used", color="#27ae60", alpha=0.85, width=0.6, edgecolor="black", linewidth=1.2)
+        ax1.bar(x, wasted, bottom=used, label="Wasted", color="#e74c3c", alpha=0.65, width=0.6, edgecolor="black", linewidth=1.2)
+        ax1.set_ylabel("Tokens (K)", fontsize=11, fontweight="bold")
+        ax1.set_title("Token Usage per Session: Used vs Wasted Context", fontsize=13, fontweight="bold", pad=15)
+        ax1.set_xticks(x)
+        ax1.set_xticklabels(dates, fontsize=9, rotation=45, ha="right")
+        ax1.legend(loc="upper left", fontsize=10, framealpha=0.95)
+        ax1.grid(axis="y", alpha=0.4, linestyle="--")
+        ax1.set_ylim(0, 220)
+
+        # Chart 2: Efficiency percentage
+        ax2 = fig.add_subplot(gs[1, 0])
+        colors = ["#27ae60" if e > 50 else "#f39c12" if e > 30 else "#e74c3c" for e in efficiency]
+        bars = ax2.bar(x, efficiency, color=colors, alpha=0.8, edgecolor="black", linewidth=1.2)
+        ax2.axhline(y=50, color="#27ae60", linestyle="--", linewidth=2, label="Good (50%)", alpha=0.7)
+        ax2.axhline(y=30, color="#f39c12", linestyle="--", linewidth=2, label="Warning (30%)", alpha=0.7)
+        ax2.set_ylabel("Efficiency (%)", fontsize=11, fontweight="bold")
+        ax2.set_xlabel("Session", fontsize=10, fontweight="bold")
+        ax2.set_title("Window Utilization %", fontsize=12, fontweight="bold", pad=10)
+        ax2.set_xticks(x)
+        ax2.set_xticklabels(dates, fontsize=8, rotation=45, ha="right")
+        ax2.set_ylim(0, 105)
+        ax2.legend(fontsize=9, loc="upper left", framealpha=0.95)
+        ax2.grid(axis="y", alpha=0.4, linestyle="--")
+
+        # Add % labels on bars
+        for i, (bar, eff) in enumerate(zip(bars, efficiency)):
+            height = bar.get_height()
+            ax2.text(bar.get_x() + bar.get_width()/2., height + 2,
+                    f"{eff:.0f}%", ha="center", va="bottom", fontsize=8, fontweight="bold")
+
+        # Chart 3: Summary stats
+        ax3 = fig.add_subplot(gs[1, 1])
+        ax3.axis("off")
+
+        total_used = sum(s["used"] for s in sessions)
+        total_wasted = sum(s["wasted"] for s in sessions)
+        avg_eff = sum(efficiency) / len(efficiency) if efficiency else 0
+        worst_eff = min(efficiency) if efficiency else 0
+        best_eff = max(efficiency) if efficiency else 0
+
+        stats_text = f"""
+SUMMARY STATISTICS
+
+Sessions Analyzed:     {len(sessions)}
+Total Used:            {fmt_tokens(total_used)}
+Total Wasted:          {fmt_tokens(total_wasted)}
+
+Average Efficiency:    {avg_eff:.1f}%
+Best Session:          {best_eff:.1f}%
+Worst Session:         {worst_eff:.1f}%
+
+Lost Productive Time:  ~{total_wasted // 5000} sessions worth
+"""
+        ax3.text(0.1, 0.95, stats_text, transform=ax3.transAxes, fontsize=10,
+                verticalalignment="top", fontfamily="monospace",
+                bbox=dict(boxstyle="round", facecolor="#ecf0f1", alpha=0.8, edgecolor="black", linewidth=1.5),
+                fontweight="bold")
+
+        plt.suptitle("CLAUDE CODE TOKEN EFFICIENCY ANALYSIS", fontsize=16, fontweight="bold", y=0.98)
+        plt.savefig("graphify-out/token_efficiency.png", dpi=200, bbox_inches="tight", facecolor="white", edgecolor="none")
         return "graphify-out/token_efficiency.png"
     except Exception as e:
         print(f"Warning: Could not generate chart: {e}")
